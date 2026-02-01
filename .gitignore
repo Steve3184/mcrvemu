@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.elf
+*.bin
+*.zip
+Image
+.DS_Store

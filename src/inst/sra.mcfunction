@@ -1,0 +1,5 @@
+$execute if score #c0 rv_data matches $(rd) run return 0
+$scoreboard players operation #val rv_data = x$(rs1) rv_data
+$scoreboard players operation #shamt rv_data = x$(rs2) rv_data
+function rv:alu/sra
+$scoreboard players operation x$(rd) rv_data = #val rv_data

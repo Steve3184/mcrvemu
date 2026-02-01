@@ -1,0 +1,1 @@
+function rv:core/mem/load_byte_raw

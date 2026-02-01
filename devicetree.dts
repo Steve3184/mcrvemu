@@ -1,0 +1,103 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "Steve3184,mcrvemu", "riscv-minimal-nommu";
+	model = "mcrvemu_v1";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio,0x10000000,16000 console=ttyS0 lpj=80";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x02000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		dtb_reserved: node@81ff8000 {
+			reg = <0x81ff8000 0x8000>;
+			no-map; 
+		};
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <16000>;
+
+		cpu@0 {
+			phandle = <1>;
+			device_type = "cpu";
+			reg = <0>;
+			status = "okay";
+			compatible = "riscv";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a";
+			mmu-type = "riscv,none";
+
+			interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "riscv,cpu-intc";
+				phandle = <2>;
+			};
+		};
+
+		cpu-map {
+
+			cluster0 {
+
+				core0 {
+					cpu = <1>;
+				};
+			};
+		};
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		uart@10000000 {
+			compatible = "ns16550a";
+			reg = <0x10000000 0x100>;
+			clock-frequency = <16000>;
+			reg-io-width = <1>;
+			status = "okay";
+		};
+
+
+		syscon@11100000 {
+			compatible = "syscon";
+			reg = <0x11100000 0x1000>;
+			phandle = <4>;
+
+			reboot {
+				compatible = "syscon-reboot";
+				offset = <0>;
+				value = <0x7777>;
+			};
+
+			poweroff {
+				compatible = "syscon-poweroff";
+				offset = <0>;
+				value = <0x5555>;
+			};
+		};
+
+
+		clint@11000000 {
+			interrupts-extended = <0x02 0x03 0x02 0x07>;
+			reg = <0x11000000 0x10000>;
+			compatible = "sifive,clint0", "riscv,clint0";
+		};
+	};
+};

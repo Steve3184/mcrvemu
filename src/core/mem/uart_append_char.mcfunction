@@ -1,0 +1,1 @@
+$data modify storage rv:data uart.buf append from storage rv:data asciimap[$(charid)]

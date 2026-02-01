@@ -1,0 +1,1 @@
+$function rv:inst/op$(op)_f$(f3)_s$(f7) with storage rv:data m
