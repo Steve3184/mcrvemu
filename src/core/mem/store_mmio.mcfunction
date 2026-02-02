@@ -20,8 +20,4 @@ execute if score #addr rv_data matches 285261820 run scoreboard players operatio
 
 execute if score #addr rv_data matches 285229056..285261823 run function rv:core/check_interrupts
 
-
-
-
-
-execute if score #addr rv_data matches 268435456 run function rv:core/mem/uart_tx
+execute if score #addr rv_data matches 268435456..268435463 run function rv:core/mem/store_uart

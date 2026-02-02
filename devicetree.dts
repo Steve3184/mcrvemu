@@ -38,7 +38,8 @@
 			status = "okay";
 			compatible = "riscv";
 			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a";
+			riscv,isa-extensions = "i", "m", "a", "zicboz";
+			riscv,cboz-block-size = <512>;
 			mmu-type = "riscv,none";
 
 			interrupt-controller {

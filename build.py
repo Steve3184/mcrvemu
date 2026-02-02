@@ -74,6 +74,7 @@ INST_MAP = {
     "amomax.w":  {"op": 0x2F, "f3": 0x2, "f7": 0x14},
     "amominu.w": {"op": 0x2F, "f3": 0x2, "f7": 0x18},
     "amomaxu.w": {"op": 0x2F, "f3": 0x2, "f7": 0x1C},
+    "cbo.zero":  {"op": 0x0F, "f3": 0x2, "f7": 0x04},
 }
 
 def generate_ram_init(f):

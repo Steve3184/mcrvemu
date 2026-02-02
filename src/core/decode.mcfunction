@@ -64,7 +64,7 @@ execute if score #op rv_data matches 99 run scoreboard players set #mask_f7 rv_d
 execute if score #op rv_data matches 3 run scoreboard players set #mask_f7 rv_data 0
 execute if score #op rv_data matches 35 run scoreboard players set #mask_f7 rv_data 0
 execute if score #op rv_data matches 103 run scoreboard players set #mask_f7 rv_data 0
-execute if score #op rv_data matches 15 run scoreboard players set #mask_f7 rv_data 0
+execute if score #op rv_data matches 15 unless score #f3 rv_data matches 2 run scoreboard players set #mask_f7 rv_data 0
 
 execute if score #op rv_data matches 47 run scoreboard players operation #f7 rv_data /= #c4 rv_data
 
@@ -77,6 +77,9 @@ execute if score #mask_f7 rv_data matches 0 run scoreboard players set #f7 rv_da
 
 execute if score #op rv_data matches 115 if score #f3 rv_data matches 0 run scoreboard players operation #f7 rv_data *= #c32 rv_data
 execute if score #op rv_data matches 115 if score #f3 rv_data matches 0 run scoreboard players operation #f7 rv_data += #temp_rs2 rv_data
+
+execute if score #op rv_data matches 15 if score #f3 rv_data matches 2 run scoreboard players operation #f7 rv_data *= #c32 rv_data
+execute if score #op rv_data matches 15 if score #f3 rv_data matches 2 run scoreboard players operation #f7 rv_data += #temp_rs2 rv_data
 
 execute store result storage rv:data m.f3 int 1 run scoreboard players get #f3 rv_data
 execute store result storage rv:data m.f7 int 1 run scoreboard players get #f7 rv_data
