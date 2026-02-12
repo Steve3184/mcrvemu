@@ -144,6 +144,7 @@ def main():
     
     if os.path.exists(dist_dir): shutil.rmtree(dist_dir)
     os.makedirs(f"{dist_dir}/data/rv/function/inst", exist_ok=True)
+    os.makedirs(f"{dist_dir}/data/rv/function/snapshots", exist_ok=True)
     os.makedirs(f"{dist_dir}/data/minecraft/tags/function", exist_ok=True)
 
     for filename in os.listdir("src/inst"):
@@ -158,7 +159,7 @@ def main():
     for item in os.listdir("src"):
         src_path = os.path.join("src", item)
         if os.path.isdir(src_path) and item != "inst":
-            shutil.copytree(src_path, f"{dist_dir}/data/rv/function/{item}")
+            shutil.copytree(src_path, f"{dist_dir}/data/rv/function/{item}", dirs_exist_ok=True)
 
     with open(f"{dist_dir}/data/rv/function/core/init_ram.mcfunction", 'w') as f:
         generate_ram_init(f)
@@ -171,11 +172,32 @@ def main():
     with open(f"{dist_dir}/data/minecraft/tags/function/tick.json", 'w') as f: f.write('{"values":["rv:core/loop"]}')
     
     with open(f"{dist_dir}/data/rv/function/core/loop.mcfunction", 'w') as f:
+        f.write("scoreboard players operation #last_mcycle rv_data = mcycle rv_data\n")
         for _ in range(820): f.write("execute if score #trap rv_data matches -1 run function rv:core/step\n")
-        f.write("scoreboard players add mtime rv_data 50\n")
-        f.write("execute if score mtime rv_data matches ..-1 run scoreboard players add mtimeh rv_data 1\n")
-        f.write("function rv:core/check_interrupts\n")
+        f.write("scoreboard players operation #delta_mcycle rv_data = mcycle rv_data\n")
+        f.write("scoreboard players operation #delta_mcycle rv_data -= #last_mcycle rv_data\n")
+        f.write("execute if score #trap rv_data matches -3 run scoreboard players set #delta_mcycle rv_data 800\n")
+        
+        f.write("scoreboard players operation #old_mtime rv_data = mtime rv_data\n")
+        f.write("scoreboard players operation mtime rv_data += #delta_mcycle rv_data\n")
+        f.write("execute if score mtime rv_data < #old_mtime rv_data run scoreboard players add mtimeh rv_data 1\n")
+        
+        f.write("scoreboard players operation #val1 rv_data = mip rv_data\n")
+        f.write("scoreboard players set #val2 rv_data -129\n")
+        f.write("function rv:alu/and\n")
+        f.write("scoreboard players operation mip rv_data = #val rv_data\n")
+
+        f.write("scoreboard players operation #v1l rv_data = mtime rv_data\n")
+        f.write("scoreboard players operation #v1h rv_data = mtimeh rv_data\n")
+        f.write("scoreboard players operation #v2l rv_data = mtimecmp rv_data\n")
+        f.write("scoreboard players operation #v2h rv_data = mtimecmph rv_data\n")
+        f.write("function rv:core/utils/compare64\n")
+
+        f.write("execute if score #result rv_data matches 1 run scoreboard players add mip rv_data 128\n")
+        f.write("execute if score #result rv_data matches 1 if score #trap rv_data matches -3 run scoreboard players set #trap rv_data -1\n")
+        
         f.write("scoreboard players operation #mstatus_mie rv_data = mstatus rv_data\n")
+        f.write("execute if score #mstatus_mie rv_data matches ..-1 run scoreboard players operation #mstatus_mie rv_data -= #c_msb rv_data\n")
         f.write("scoreboard players operation #mstatus_mie rv_data /= #c8 rv_data\n")
         f.write("scoreboard players operation #mstatus_mie rv_data %= #c2 rv_data\n")
         f.write("execute if score #mstatus_mie rv_data matches 1 run function rv:core/dispatch_interrupt\n")

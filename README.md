@@ -6,7 +6,7 @@
 
 ## 🚀 Features
 
-- **Architecture**: Full **RV32IMA + Zicsr + Zifencei** support.
+- **Architecture**: Full **RV32IMA + Zicsr + Zifencei + Zicboz** support.
 - **Performance**: Achieves ~16kHz instruction execution speed.
 - **Operating System**: Boots **Linux Kernel 6.12** (no-MMU).
 - **Memory System**: 32MB RAM implemented via NBT Storage.

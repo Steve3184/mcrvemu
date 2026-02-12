@@ -2,6 +2,7 @@
 scoreboard players set #val rv_data 0
 
 execute if score #addr rv_data matches 268435456..268435463 run function rv:core/mem/load_uart
+execute if score #addr rv_data matches 497025028..497025031 run function rv:core/mem/load_custom_uart
 
 execute if score #addr rv_data matches 285212672 run scoreboard players operation #val rv_data = mip rv_data
 execute if score #addr rv_data matches 285212672 run scoreboard players operation #val rv_data /= #c8 rv_data

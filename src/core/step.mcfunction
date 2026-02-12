@@ -8,8 +8,9 @@ execute unless score #pc_align rv_data matches 0 run function rv:core/trap
 execute unless score #pc_align rv_data matches 0 run return 0
 
 scoreboard players set #trap_occurred rv_data 0
+scoreboard players operation #old_cycle rv_data = mcycle rv_data
 scoreboard players add mcycle rv_data 1
-execute if score mcycle rv_data matches ..-1 run scoreboard players add mcycleh rv_data 1
+execute if score mcycle rv_data < #old_cycle rv_data run scoreboard players add mcycleh rv_data 1
 
 scoreboard players operation #pc_at_start rv_data = #pc rv_data
 
@@ -29,7 +30,8 @@ function rv:core/decode
 function rv:core/execute_inst with storage rv:data m
 
 execute if score #trap_occurred rv_data matches 0 run scoreboard players add #pc rv_data 4
+execute if score #trap_occurred rv_data matches 0 run scoreboard players operation #old_minstret rv_data = minstret rv_data
 execute if score #trap_occurred rv_data matches 0 run scoreboard players add minstret rv_data 1
-execute if score #trap_occurred rv_data matches 0 if score minstret rv_data matches ..-1 run scoreboard players add minstreth rv_data 1
+execute if score #trap_occurred rv_data matches 0 if score minstret rv_data < #old_minstret rv_data run scoreboard players add minstreth rv_data 1
 
 scoreboard players set x0 rv_data 0

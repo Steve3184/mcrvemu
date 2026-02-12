@@ -13,12 +13,13 @@ scoreboard players set x11 rv_data -2113961984
 
 scoreboard players operation #pc rv_data = #c_msb rv_data
 
-scoreboard players set #trap rv_data -1
+scoreboard players set #trap rv_data -4
+scoreboard players set #last_mcycle rv_data 0
 
 data remove storage rv:data m
 data modify storage rv:data m set value {op:0, f3:0, f7:0, rs1:0, rs2:0, rd:0}
 
 data remove storage rv:data uart
-data modify storage rv:data uart set value {buf: [], charid: 0}
+data modify storage rv:data uart set value {buf: [], charid: 0, rx_buf: []}
 
 tellraw @a "MCRVEmu Initialized."
