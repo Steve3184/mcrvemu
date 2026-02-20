@@ -4,6 +4,8 @@ import struct
 import shutil
 import json
 
+IPT = 820
+
 # RV32IMA + Zicsr + Zifencei
 INST_MAP = {
     "add":      {"op": 0x33, "f3": 0x0, "f7": 0x00},
@@ -173,10 +175,10 @@ def main():
     
     with open(f"{dist_dir}/data/rv/function/core/loop.mcfunction", 'w') as f:
         f.write("scoreboard players operation #last_mcycle rv_data = mcycle rv_data\n")
-        for _ in range(820): f.write("execute if score #trap rv_data matches -1 run function rv:core/step\n")
+        for _ in range(IPT): f.write("execute if score #trap rv_data matches -1 run function rv:core/step\n")
         f.write("scoreboard players operation #delta_mcycle rv_data = mcycle rv_data\n")
         f.write("scoreboard players operation #delta_mcycle rv_data -= #last_mcycle rv_data\n")
-        f.write("execute if score #trap rv_data matches -3 run scoreboard players set #delta_mcycle rv_data 800\n")
+        f.write(f"execute if score #trap rv_data matches -3 run scoreboard players set #delta_mcycle rv_data {IPT}\n")
         
         f.write("scoreboard players operation #old_mtime rv_data = mtime rv_data\n")
         f.write("scoreboard players operation mtime rv_data += #delta_mcycle rv_data\n")

@@ -13,6 +13,25 @@
 - **I/O**: UART console output rendered directly to Minecraft's chat via `tellraw`.
 - **Pure Vanilla**: No mods, no plugins, just standard Minecraft Datapack logic.
 
+## 🔨 How to Build
+
+The project requires Python 3 to package the source files into a Datapack.
+
+```bash
+python3 build.py <Binary Path> <dist folder>
+```
+
+You can download prebuilt Linux Images from [here](https://drive.google.com/drive/folders/1U63zFaVGW-pl5-5tKFWX1-ChglGWQZ1f?usp=sharing) :)
+
+**Example:**
+To build a Datapack using a Linux `Image` binary:
+
+```bash
+python3 build.py Image dist
+```
+
+This will generate the final Datapack in the `dist` folder, which you can then place in your world's `datapacks` directory.
+
 ## 🛠 Technical Implementation
 
 ### Memory Backend
@@ -41,21 +60,6 @@ The emulator follows a classic CPU pipeline flow handled by `core/step.mcfunctio
         - `mem/`: The memory backend controller for loads and stores.
         - `utils/`: Helper functions.
         - `step.mcfunction`: The main execution loop.
-
-## 🔨 How to Build
-
-The project requires Python 3 to package the source files into a Datapack.
-
-```bash
-python3 build.py <Binary Path> <dist folder>
-```
-
-**Example:**
-To build a Datapack using a Linux `Image` binary:
-```bash
-python3 build.py Image dist
-```
-This will generate the final Datapack in the `dist` folder, which you can then place in your world's `datapacks` directory.
 
 ## ⚠️ Requirements
 
