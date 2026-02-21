@@ -223,12 +223,29 @@ def main():
 
     generate_ascii_init(dist_dir)
 
+    # Generate char_to_int for book input
+    os.makedirs(f"{dist_dir}/data/rv/function/input", exist_ok=True)
+    with open(f"{dist_dir}/data/rv/function/input/char_to_int.mcfunction", 'w', encoding='utf-8') as f:
+        f.write("data modify storage rv:data uart.input.char_val set value 10\n")
+        for i in range(32, 127):
+            char_literal = chr(i)
+            if char_literal == '"':
+                match_str = "'\"'"
+            elif char_literal == "'":
+                match_str = '"\'"'
+            elif char_literal == "\\":
+                match_str = '"\\\\"'
+            else:
+                match_str = f'"{char_literal}"'
+            f.write(f'execute if data storage rv:data uart.input{{char_str:{match_str}}} run data modify storage rv:data uart.input.char_val set value {i}\n')
+
     bin_to_mc(bin_file, dist_dir)
     with open(f"{dist_dir}/pack.mcmeta", 'w') as f: f.write('{"pack":{"pack_format":48,"description":"mcrvemu"}}')
     with open(f"{dist_dir}/data/minecraft/tags/function/load.json", 'w') as f: f.write('{"values":["rv:core/boot"]}')
     with open(f"{dist_dir}/data/minecraft/tags/function/tick.json", 'w') as f: f.write('{"values":["rv:core/loop"]}')
     
     with open(f"{dist_dir}/data/rv/function/core/loop.mcfunction", 'w') as f:
+        f.write("function rv:input/tick\n")
         assert IPT % INTERRUPT_INTERVAL == 0, "IPT must be divisible by INTERRUPT_INTERVAL"
         groups = IPT // INTERRUPT_INTERVAL
         for _ in range(groups):

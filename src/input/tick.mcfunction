@@ -1,0 +1,1 @@
+execute as @a[nbt={Inventory:[{Slot:-106b,components:{"minecraft:custom_data":{rv_keyboard:1b}}}]}] run function rv:input/check_hand

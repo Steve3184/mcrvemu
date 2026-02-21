@@ -17,7 +17,7 @@ data remove storage rv:data m
 data modify storage rv:data m set value {op:0, f3:0, f7:0, rs1:0, rs2:0, rd:0}
 
 data remove storage rv:data uart
-data modify storage rv:data uart set value {buf: [], charid: 0, rx_buf: []}
+data modify storage rv:data uart set value {buf: [], charid: 0, rx_buf: [], input:{}}
 function rv:core/vt/init
 
 tellraw @a "MCRVEmu Initialized."

@@ -57,6 +57,27 @@ To get a full registers dump, run the following command in the chat:
 /function rv:core/dump
 ```
 
+### ⌨️ UART Input (Keyboard)
+
+The emulator supports interactive UART input using a **Book and Quill**.
+
+1. **Get the Input Book**: 
+   Run the following command to receive the "UART Keyboard" item:
+   ```mcfunction
+   /function rv:input/get_input_book
+   ```
+2. **Usage**:
+   - Place the book in your **offhand** (shield slot).
+   - Open the book and type your input.
+   - Once you close the book, the emulator will automatically:
+     - Read the text from the first page.
+     - Convert it to ASCII characters.
+     - Append them to the UART `rx_buf`.
+     - Clear the book's content so you can type again.
+   
+> [!IMPORTANT]
+> The book **must** be in your offhand for the emulator to detect and process your input.
+
 ## 📸 Snapshots (Fast Booting)
 
 Booting Linux from scratch inside Minecraft takes time. To bypass the lengthy boot process, you can use the included C reference emulator (`ref_emu`) to boot the OS externally and take a snapshot of the exact CPU/RAM state at a specific point. 
