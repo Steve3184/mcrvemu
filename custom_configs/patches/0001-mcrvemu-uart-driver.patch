@@ -1,0 +1,445 @@
+From 30b8c619e2c065b6d5133a92516f78d347ef8b13 Mon Sep 17 00:00:00 2001
+From: Steve3184 <77789906+Steve3184@users.noreply.github.com>
+Date: Sun, 22 Feb 2026 02:09:33 +0800
+Subject: [PATCH] mcrvemu uart driver
+
+---
+ drivers/tty/serial/Kconfig        |   6 +
+ drivers/tty/serial/Makefile       |   2 +
+ drivers/tty/serial/mcrvemu_uart.c | 397 ++++++++++++++++++++++++++++++
+ 3 files changed, 405 insertions(+)
+ create mode 100644 drivers/tty/serial/mcrvemu_uart.c
+
+diff --git a/drivers/tty/serial/Kconfig b/drivers/tty/serial/Kconfig
+index 4fd789a77..bc9c4a8d1 100644
+--- a/drivers/tty/serial/Kconfig
++++ b/drivers/tty/serial/Kconfig
+@@ -1600,6 +1600,12 @@ config SERIAL_ESP32_ACM
+ 	  snippet may be used:
+ 	    earlycon=esp32s3acm,mmio32,0x60038000
+ 
++config SERIAL_MCRVEMU_UART
++	tristate "MCRVEmu UART Support"
++	depends on RISCV
++	select SERIAL_CORE
++	select SERIAL_CORE_CONSOLE
++
+ endmenu
+ 
+ config SERIAL_MCTRL_GPIO
+diff --git a/drivers/tty/serial/Makefile b/drivers/tty/serial/Makefile
+index 6ff74f0a9..8e05843f8 100644
+--- a/drivers/tty/serial/Makefile
++++ b/drivers/tty/serial/Makefile
+@@ -99,3 +99,5 @@ obj-$(CONFIG_SERIAL_MCTRL_GPIO)	+= serial_mctrl_gpio.o
+ obj-$(CONFIG_SERIAL_KGDB_NMI) += kgdb_nmi.o
+ obj-$(CONFIG_KGDB_SERIAL_CONSOLE) += kgdboc.o
+ obj-$(CONFIG_SERIAL_NUVOTON_MA35D1) += ma35d1_serial.o
++
++obj-$(CONFIG_SERIAL_MCRVEMU_UART) += mcrvemu_uart.o
+diff --git a/drivers/tty/serial/mcrvemu_uart.c b/drivers/tty/serial/mcrvemu_uart.c
+new file mode 100644
+index 000000000..239ce8db0
+--- /dev/null
++++ b/drivers/tty/serial/mcrvemu_uart.c
+@@ -0,0 +1,397 @@
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/console.h>
++#include <linux/serial_core.h>
++#include <linux/serial.h>
++#include <linux/tty.h>
++#include <linux/tty_flip.h>
++#include <linux/timer.h>
++#include <linux/io.h>
++#include <linux/spinlock.h>
++#include <linux/platform_device.h>
++#include <linux/of.h>
++
++#define DRIVER_NAME "mcrvemu_uart"
++#define DEV_NAME    "ttySE"
++#define UART_NR     1
++
++#define REG_TX      0x00
++#define REG_RX      0x04
++
++#define PORT_MCRVEMU_UART  100
++
++static unsigned long mmio_base = 0;
++module_param(mmio_base, ulong, 0444);
++MODULE_PARM_DESC(mmio_base, "Physical address of the UART MMIO base");
++
++static unsigned int poll_interval_ms = 10;
++module_param(poll_interval_ms, uint, 0644);
++MODULE_PARM_DESC(poll_interval_ms, "RX polling interval in milliseconds (default: 10)");
++
++static unsigned int rx_batch_size = 256;
++module_param(rx_batch_size, uint, 0644);
++MODULE_PARM_DESC(rx_batch_size, "Maximum characters to read per poll (default: 256)");
++
++struct mcrvemu_uart_port {
++	struct uart_port    port;
++	struct timer_list   rx_timer;
++	atomic_t            timer_active;
++	void __iomem        *membase;
++	spinlock_t          console_lock;
++};
++
++static struct mcrvemu_uart_port *mcrvemu_uart_ports[UART_NR];
++static struct platform_device *mcrvemu_uart_pdev;
++
++static inline void mcrvemu_uart_write_char(void __iomem *base, unsigned char ch)
++{
++	writeb(ch, base + REG_TX);
++	cpu_relax();
++}
++
++static inline unsigned char mcrvemu_uart_read_char(void __iomem *base)
++{
++	unsigned char ch = readb(base + REG_RX);
++	cpu_relax();
++	return ch;
++}
++
++static void mcrvemu_uart_rx_poll(struct timer_list *t)
++{
++	struct mcrvemu_uart_port *sport = from_timer(sport, t, rx_timer);
++	struct uart_port *port = &sport->port;
++	struct tty_port *tty_port;
++	unsigned char ch;
++	unsigned int count = 0;
++	unsigned long flags;
++	if (!atomic_read(&sport->timer_active))
++		return;
++	spin_lock_irqsave(&port->lock, flags);
++	if (!port->state) {
++		spin_unlock_irqrestore(&port->lock, flags);
++		goto reschedule;
++	}
++	tty_port = &port->state->port;
++	while (count < rx_batch_size) {
++		ch = mcrvemu_uart_read_char(sport->membase);
++		if (ch == 0)
++			break;
++		if (uart_handle_sysrq_char(port, ch))
++			continue;
++		uart_insert_char(port, 0, 0, ch, TTY_NORMAL);
++		count++;
++	}
++	if (count > 0) {
++		port->icount.rx += count;
++		spin_unlock_irqrestore(&port->lock, flags);
++		tty_flip_buffer_push(tty_port);
++	} else {
++		spin_unlock_irqrestore(&port->lock, flags);
++	}
++	reschedule:
++	if (atomic_read(&sport->timer_active))
++		mod_timer(&sport->rx_timer, jiffies + msecs_to_jiffies(poll_interval_ms));
++}
++
++static unsigned int mcrvemu_uart_tx_empty(struct uart_port *port)
++{
++	return TIOCSER_TEMT;
++}
++
++static void mcrvemu_uart_set_mctrl(struct uart_port *port, unsigned int mctrl)
++{
++
++}
++
++static unsigned int mcrvemu_uart_get_mctrl(struct uart_port *port)
++{
++	return TIOCM_CTS | TIOCM_DSR | TIOCM_CAR | TIOCM_RNG;
++}
++
++static void mcrvemu_uart_stop_tx(struct uart_port *port)
++{
++
++}
++
++static void mcrvemu_uart_start_tx(struct uart_port *port)
++{
++	struct mcrvemu_uart_port *sport = container_of(port, struct mcrvemu_uart_port, port);
++	unsigned char ch;
++	uart_port_tx(port, ch, true,
++		     mcrvemu_uart_write_char(sport->membase, ch)
++	);
++}
++
++static void mcrvemu_uart_stop_rx(struct uart_port *port)
++{
++	struct mcrvemu_uart_port *sport = container_of(port, struct mcrvemu_uart_port, port);
++	atomic_set(&sport->timer_active, 0);
++	del_timer_sync(&sport->rx_timer);
++}
++
++static void mcrvemu_uart_enable_ms(struct uart_port *port)
++{
++
++}
++
++static void mcrvemu_uart_break_ctl(struct uart_port *port, int break_state)
++{
++
++}
++
++static int mcrvemu_uart_startup(struct uart_port *port)
++{
++	struct mcrvemu_uart_port *sport = container_of(port, struct mcrvemu_uart_port, port);
++	pr_debug("%s: starting up port\n", __func__);
++	atomic_set(&sport->timer_active, 1);
++	timer_setup(&sport->rx_timer, mcrvemu_uart_rx_poll, 0);
++	mod_timer(&sport->rx_timer, jiffies + msecs_to_jiffies(poll_interval_ms));
++	return 0;
++}
++
++static void mcrvemu_uart_shutdown(struct uart_port *port)
++{
++	pr_debug("%s: shutting down port\n", __func__);
++	mcrvemu_uart_stop_rx(port);
++}
++
++static void mcrvemu_uart_set_termios(struct uart_port *port, struct ktermios *termios, const struct ktermios *old)
++{
++	unsigned long flags;
++	spin_lock_irqsave(&port->lock, flags);
++	uart_update_timeout(port, termios->c_cflag, 115200);
++	spin_unlock_irqrestore(&port->lock, flags);
++}
++
++static const char *mcrvemu_uart_type(struct uart_port *port)
++{
++	return port->type == PORT_MCRVEMU_UART ? "MCRVEMU_UART" : NULL;
++}
++
++static void mcrvemu_uart_release_port(struct uart_port *port)
++{
++
++}
++
++static int mcrvemu_uart_request_port(struct uart_port *port)
++{
++	return 0;
++}
++
++static void mcrvemu_uart_config_port(struct uart_port *port, int flags)
++{
++	if (flags & UART_CONFIG_TYPE)
++		port->type = PORT_MCRVEMU_UART;
++}
++
++static int mcrvemu_uart_verify_port(struct uart_port *port, struct serial_struct *ser)
++{
++	if (ser->type != PORT_UNKNOWN && ser->type != PORT_MCRVEMU_UART)
++		return -EINVAL;
++	return 0;
++}
++
++static void mcrvemu_uart_pm(struct uart_port *port, unsigned int state,
++			   unsigned int oldstate)
++{
++
++}
++
++static const struct uart_ops mcrvemu_uart_ops = {
++	.tx_empty       = mcrvemu_uart_tx_empty,
++	.set_mctrl      = mcrvemu_uart_set_mctrl,
++	.get_mctrl      = mcrvemu_uart_get_mctrl,
++	.stop_tx        = mcrvemu_uart_stop_tx,
++	.start_tx       = mcrvemu_uart_start_tx,
++	.stop_rx        = mcrvemu_uart_stop_rx,
++	.enable_ms      = mcrvemu_uart_enable_ms,
++	.break_ctl      = mcrvemu_uart_break_ctl,
++	.startup        = mcrvemu_uart_startup,
++	.shutdown       = mcrvemu_uart_shutdown,
++	.set_termios    = mcrvemu_uart_set_termios,
++	.pm             = mcrvemu_uart_pm,
++	.type           = mcrvemu_uart_type,
++	.release_port   = mcrvemu_uart_release_port,
++	.request_port   = mcrvemu_uart_request_port,
++	.config_port    = mcrvemu_uart_config_port,
++	.verify_port    = mcrvemu_uart_verify_port,
++};
++
++static void simple_console_write(struct console *co, const char *s, unsigned int count)
++{
++	struct mcrvemu_uart_port *sport;
++	unsigned long flags;
++	int i;
++	if (co->index < 0 || co->index >= UART_NR)
++		return;
++	sport = mcrvemu_uart_ports[co->index];
++	if (!sport || !sport->membase)
++		return;
++	spin_lock_irqsave(&sport->console_lock, flags);
++
++	for (i = 0; i < count; i++) {
++		if (s[i] == '\n')
++			mcrvemu_uart_write_char(sport->membase, '\r');
++		mcrvemu_uart_write_char(sport->membase, s[i]);
++	}
++	spin_unlock_irqrestore(&sport->console_lock, flags);
++}
++
++static struct tty_driver *simple_console_device(struct console *co, int *index)
++{
++	struct uart_driver *drv = co->data;
++	*index = co->index;
++	return drv->tty_driver;
++}
++
++static int simple_console_setup(struct console *co, char *options)
++{
++	struct mcrvemu_uart_port *sport;
++	if (co->index < 0 || co->index >= UART_NR)
++		return -ENODEV;
++	sport = mcrvemu_uart_ports[co->index];
++	if (!sport || !sport->membase)
++		return -ENODEV;
++	return 0;
++}
++
++static struct uart_driver mcrvemu_uart_driver;
++
++static struct console mcrvemu_uart_console = {
++	.name   = DEV_NAME,
++	.write  = simple_console_write,
++	.device = simple_console_device,
++	.setup  = simple_console_setup,
++	.flags  = CON_PRINTBUFFER | CON_ANYTIME,
++	.index  = -1,
++	.data   = &mcrvemu_uart_driver,
++};
++
++static struct uart_driver mcrvemu_uart_driver = {
++	.owner          = THIS_MODULE,
++	.driver_name    = DRIVER_NAME,
++	.dev_name       = DEV_NAME,
++	.major          = 0,
++	.minor          = 0,
++	.nr             = UART_NR,
++	.cons           = &mcrvemu_uart_console,
++};
++
++static int mcrvemu_uart_probe(struct platform_device *pdev)
++{
++	struct mcrvemu_uart_port *sport;
++	struct uart_port *port;
++	int ret;
++	pr_info("%s: probing device\n", __func__);
++	if (pdev->id < 0 || pdev->id >= UART_NR)
++		return -EINVAL;
++	sport = devm_kzalloc(&pdev->dev, sizeof(*sport), GFP_KERNEL);
++	if (!sport)
++		return -ENOMEM;
++	sport->membase = devm_ioremap(&pdev->dev, mmio_base, 0x100);
++	if (!sport->membase) {
++		dev_err(&pdev->dev, "failed to map MMIO region at 0x%lx\n", mmio_base);
++		return -ENOMEM;
++	}
++	port = &sport->port;
++	port->dev       = &pdev->dev;
++	port->type      = PORT_MCRVEMU_UART;
++	port->iotype    = UPIO_MEM;
++	port->mapbase   = mmio_base;
++	port->membase   = sport->membase;
++	port->irq       = 0;
++	port->fifosize  = 1;
++	port->ops       = &mcrvemu_uart_ops;
++	port->flags     = UPF_BOOT_AUTOCONF | UPF_FIXED_PORT;
++	port->line      = pdev->id;
++	spin_lock_init(&port->lock);
++	spin_lock_init(&sport->console_lock);
++	atomic_set(&sport->timer_active, 0);
++	mcrvemu_uart_ports[pdev->id] = sport;
++	platform_set_drvdata(pdev, sport);
++	ret = uart_add_one_port(&mcrvemu_uart_driver, port);
++	if (ret) {
++		dev_err(&pdev->dev, "failed to add uart port: %d\n", ret);
++		mcrvemu_uart_ports[pdev->id] = NULL;
++		return ret;
++	}
++	dev_info(&pdev->dev, "UART registered at 0x%lx, polling every %u ms\n",
++		 mmio_base, poll_interval_ms);
++
++	return 0;
++}
++
++static void mcrvemu_uart_remove(struct platform_device *pdev)
++{
++	struct mcrvemu_uart_port *sport = platform_get_drvdata(pdev);
++	if (sport) {
++		uart_remove_one_port(&mcrvemu_uart_driver, &sport->port);
++		mcrvemu_uart_ports[pdev->id] = NULL;
++	}
++
++}
++
++static struct platform_driver mcrvemu_uart_platform_driver = {
++	.probe  = mcrvemu_uart_probe,
++	.remove = mcrvemu_uart_remove,
++	.driver = {
++		.name   = DRIVER_NAME,
++		.owner  = THIS_MODULE,
++	},
++};
++
++static int __init mcrvemu_uart_init(void)
++{
++	int ret;
++	pr_info("MCRVEmu UART driver initializing\n");
++	if (!mmio_base) {
++		pr_err("mmio_base parameter is required!\n");
++		return -EINVAL;
++	}
++	ret = uart_register_driver(&mcrvemu_uart_driver);
++	if (ret) {
++		pr_err("failed to register uart driver: %d\n", ret);
++		return ret;
++	}
++	ret = platform_driver_register(&mcrvemu_uart_platform_driver);
++	if (ret) {
++		pr_err("failed to register platform driver: %d\n", ret);
++		goto err_unreg_uart;
++	}
++	mcrvemu_uart_pdev = platform_device_alloc(DRIVER_NAME, 0);
++	if (!mcrvemu_uart_pdev) {
++		pr_err("failed to allocate platform device\n");
++		ret = -ENOMEM;
++		goto err_unreg_pdrv;
++	}
++	ret = platform_device_add(mcrvemu_uart_pdev);
++	if (ret) {
++		pr_err("failed to add platform device: %d\n", ret);
++		goto err_put_pdev;
++	}
++	pr_info("MCRVEmu UART driver initialized successfully\n");
++	return 0;
++err_put_pdev:
++	platform_device_put(mcrvemu_uart_pdev);
++err_unreg_pdrv:
++	platform_driver_unregister(&mcrvemu_uart_platform_driver);
++err_unreg_uart:
++	uart_unregister_driver(&mcrvemu_uart_driver);
++	return ret;
++}
++
++static void __exit mcrvemu_uart_exit(void)
++{
++	platform_device_unregister(mcrvemu_uart_pdev);
++	platform_driver_unregister(&mcrvemu_uart_platform_driver);
++	uart_unregister_driver(&mcrvemu_uart_driver);
++	pr_info("MCRVEmu UART driver unloaded\n");
++}
++
++module_init(mcrvemu_uart_init);
++module_exit(mcrvemu_uart_exit);
++
++MODULE_LICENSE("MIT");
++MODULE_AUTHOR("Steve3184");
++MODULE_DESCRIPTION("MCRVEmu UART Driver");
++MODULE_VERSION("1.0");
+-- 
+2.53.0
+

@@ -7,7 +7,7 @@
 	model = "mcrvemu_v1";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio,0x10000000,16000 console=ttyS0 lpj=80";
+		bootargs = "earlycon=uart8250,mmio,0x10000000 mcrvemu_uart.mmio_base=0x1da00000 console=ttySE0";
 	};
 
 	memory@80000000 {
@@ -68,10 +68,10 @@
 		ranges;
 
 		uart@10000000 {
-			compatible = "ns16550a";
+			compatible = "ns16850";
 			reg = <0x10000000 0x100>;
-			clock-frequency = <16000>;
-			reg-io-width = <1>;
+			clock-frequency = <0x1000000>;
+			no-loopback-test = <1>;
 			status = "okay";
 		};
 

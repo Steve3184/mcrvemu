@@ -111,8 +111,6 @@ int main(int argc, char **argv) {
     core->regs[11] = DTB_FIXED_ADDR;
     core->extraflags |= 3;
     
-    printf("MiniRV32IMA running. DTB at 0x%08x\n", DTB_FIXED_ADDR);
-    
     CaptureKeyboardInput();
     
 
@@ -217,10 +215,6 @@ void DumpSnapshot(const char *filename) {
     for (int i = 1; i < 32; i++) {
         fprintf(f, "scoreboard players set x%d rv_data %d\n", i, (int)core->regs[i]);
     }
-    
-    if (core->regs[4] == 0) printf("[WARNING] tp is 0 at dump!\n");
-    printf("[DEBUG] mscratch: %08x, mtvec: %08x, sp: %08x, tp: %08x, priv: %d\n", 
-           core->mscratch, core->mtvec, core->regs[2], core->regs[4], (int)(core->extraflags & 3));
 
     uint32_t *words = (uint32_t *)ram_image;
     for (int p = 0; p < 1024; p++) {
