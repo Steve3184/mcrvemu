@@ -1,4 +1,3 @@
-$scoreboard players operation #val2 rv_data = x$(rs1) rv_data
 scoreboard players set #minus_one rv_data -1
 scoreboard players operation #val2 rv_data *= #minus_one rv_data
 scoreboard players remove #val2 rv_data 1

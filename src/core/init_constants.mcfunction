@@ -1,5 +1,7 @@
 scoreboard objectives add rv_data dummy
 
+scoreboard players set #c60 rv_data 60
+
 scoreboard players set #c0 rv_data 0
 scoreboard players set #c1 rv_data 1
 scoreboard players set #c2 rv_data 2

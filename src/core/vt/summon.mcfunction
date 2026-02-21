@@ -1,0 +1,1 @@
+execute as @p at @s run summon minecraft:text_display ~ ~ ~ {Tags:['rv_vt'],text:'',alignment:'left',line_width:32768,background:-16777216}

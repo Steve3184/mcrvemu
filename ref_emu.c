@@ -23,8 +23,8 @@ static char custom_uart_line_buf[2048];
 static int custom_uart_line_ptr = 0;
 
 static uint8_t custom_uart_rx_buf[2048];
-static int custom_uart_rx_head = 0;
-static int custom_uart_rx_tail = 0;
+static int uart_rx_head = 0;
+static int uart_rx_tail = 0;
 
 static const char *snapshot_trigger = NULL;
 static const char *snapshot_out = NULL;
@@ -64,10 +64,10 @@ static void PollKeyboard() {
     while (read(STDIN_FILENO, &ch, 1) > 0) {
         if (ch == 127) ch = 8;
         
-        int next = (custom_uart_rx_tail + 1) % sizeof(custom_uart_rx_buf);
-        if (next != custom_uart_rx_head) {
-            custom_uart_rx_buf[custom_uart_rx_tail] = ch;
-            custom_uart_rx_tail = next;
+        int next = (uart_rx_tail + 1) % sizeof(custom_uart_rx_buf);
+        if (next != uart_rx_head) {
+            custom_uart_rx_buf[uart_rx_tail] = ch;
+            uart_rx_tail = next;
         }
     }
 }
@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
     
     CaptureKeyboardInput();
     
+
     while (1) {
         int ret = MiniRV32IMAStep(core, ram_image, 0, 800, 800);
         
@@ -124,6 +125,7 @@ int main(int argc, char **argv) {
             DumpSnapshot(snapshot_out);
             exit(0);
         }
+
         if (ret == 0x5555) { printf("\nPoweroff.\n"); break; }
         if (ret == 0x7777) { printf("\nReboot.\n"); core->pc = RAM_OFFSET; }
     }
@@ -161,12 +163,25 @@ static uint32_t HandleControlStore(uint32_t addy, uint32_t val) {
 }
 
 static uint32_t HandleControlLoad(uint32_t addy) {
-    if (addy == 0x10000005) return 0x60; 
+    if (addy == 0x10000005) {
+        uint32_t lsr = 0x60;
+        if (uart_rx_head != uart_rx_tail) lsr |= 0x01;
+        return lsr;
+    }
+
+    if (addy == 0x10000000) {
+        if (uart_rx_head != uart_rx_tail) {
+            uint32_t val = custom_uart_rx_buf[uart_rx_head];
+            uart_rx_head = (uart_rx_head + 1) % sizeof(custom_uart_rx_buf);
+            return val;
+        }
+        return 0;
+    }
 
     if (addy == 0x1da00004) {
-        if (custom_uart_rx_head != custom_uart_rx_tail) {
-            uint32_t val = custom_uart_rx_buf[custom_uart_rx_head];
-            custom_uart_rx_head = (custom_uart_rx_head + 1) % sizeof(custom_uart_rx_buf);
+        if (uart_rx_head != uart_rx_tail) {
+            uint32_t val = custom_uart_rx_buf[uart_rx_head];
+            uart_rx_head = (uart_rx_head + 1) % sizeof(custom_uart_rx_buf);
             return val;
         }
         return 0; 
