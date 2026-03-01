@@ -1,6 +1,6 @@
 dist/
 *.zip
 Image
-buildroot*
+buildroot-*
 bintoh
 ref_emu
